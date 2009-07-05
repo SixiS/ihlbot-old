@@ -422,7 +422,7 @@ class IRC
                     #
                     #
                     #
-                    when "!remove"
+                    when "!remove", "!rem"
                       if(Nick.find_by_nick $1)
                         remover = Nick.find_by_nick($1).player        
                         ingame = false
@@ -858,7 +858,18 @@ class IRC
                            send "PRIVMSG #{$1} :Roll win rate: #{roll_win_rate} (w:#{player.roll_wins} l:#{player.roll_losses})"
                            send "PRIVMSG #{$1} :On Trial?: #{player.trial ? "Yes" : "No" }"
                            send "PRIVMSG #{$1} :Punishes: #{player.punishes}" 
-                           send "PRIVMSG #{$1} :CG Level: #{player.cg}"        
+                           send "PRIVMSG #{$1} :CG Level: #{player.cg}"     
+                           pn = Nick.find_by_nick($1)
+                           if((pn && pn.player.cg > 1) || (pn.player.id == player.id))
+                            if(player.contacts.size == 0)
+                              send "PRIVMSG #{$1} :No Contact Info."
+                            else
+                              send "PRIVMSG #{$1} :Contact Infos:"    
+                              player.contacts.each do |c|
+                                send "PRIVMSG #{$1} :#{"".center(5)}#{c.contact_type} : #{c.contact_details}"    
+                              end
+                            end
+                           end
                          end
                        end
                     
@@ -994,15 +1005,15 @@ class IRC
                     #
                     #
                     #
-                    when "!contacts"
+                    when "!contacts", "!contact"
                       pn = Nick.find_by_nick $1
                       if(pn)
                         p = pn.player
-                        if(p.contacts)
+                        if(p.contacts.size > 0)
                           send "PRIVMSG #{$1} :#{"Your Contact Details".center(50,"*")}"
                           send "PRIVMSG #{$1} :#{"Contact ID".center(10)}#{"Contact Type".center(20)}#{"Contact Details".center(20)}"
                           p.contacts.each do |c|
-                            send "PRIVMSG #{$1} :#{c.id.center(10)}#{c.contact_type.center(20)}#{c.contact_details}"
+                            send "PRIVMSG #{$1} :#{c.id.to_s.center(10)}#{c.contact_type.center(20)}#{c.contact_details.center(20)}"
                           end
                         else
                           send "PRIVMSG #{$1} :You have not set any contacts."
@@ -1030,7 +1041,7 @@ class IRC
                           send "PRIVMSG #{$1} :   Eg. !addcontact Cellphone 0829563399"
                           send "PRIVMSG #{$1} : Note: Both <contact type> and <contact details> must not contain spaces."
                         else
-                          c = new Contact
+                          c = Contact.new
                           c.player_id = p.id
                           c.contact_type = message[1]
                           c.contact_details = message[2]
@@ -1059,8 +1070,8 @@ class IRC
                           send "PRIVMSG #{$1} :Usage: !deletecontact <contact id>"
                           send "PRIVMSG #{$1} :   Eg. !deletecontact 32"
                         else
-                          c = Contact.find(message[1])
-                          if (c && c.player_id == p.id)
+                          c = Contact.find_by_id(message[1])
+                          if (!(c.blank?) && c.player_id == p.id)
                             c.delete
                             send "PRIVMSG #{$1} :Contact info deleted."
                           else
@@ -1078,7 +1089,7 @@ class IRC
                     
                     
                     when "!admins"
-                      @admins = Player.find(:all, :conditions => ["cg > ? AND cg < ?",1,10])
+                      @admins = Player.find(:all, :conditions => ["cg > ? AND cg <= ?",1,10])
                       send "PRIVMSG #{$1} :Admins:"
                       send "PRIVMSG #{$1} :#{@admins.collect(&:nick).join(", ")}"
                       
@@ -1836,8 +1847,10 @@ class IRC
                         send "PRIVMSG #{$1} :NOTE: YOU MUST BE ON YOUR MAIN NICK AND ON WAR3"
                         send "PRIVMSG #{$1} :!unlink <nick> - un-links given nick from your main nick."
                         send "PRIVMSG #{$1} :NOTE: YOU MUST BE ON YOUR MAIN NICK AND ON WAR3"
-                        send "PRIVMSG #{$1} :!changeCaps <nick> - Lets you change the way your main nick looks (not change the nick itself)"                     
-                        
+                        send "PRIVMSG #{$1} :!changeCaps <nick> - Lets you change the way your main nick looks (not change the nick itself)"                                           
+                        send "PRIVMSG #{$1} :!contacts - Displays your contact information"
+                        send "PRIVMSG #{$1} :!addContact <contact type> <contact details> - Adds a contact, there must be no spaces in the type or details"
+                        send "PRIVMSG #{$1} :!deleteContact <contact id> - Deletes the contact"                       
                         send "PRIVMSG #{$1} :!admins - Displays a list of all the admins"
                         
                         send "PRIVMSG #{$1} :!help - Shows this help text"
