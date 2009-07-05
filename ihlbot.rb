@@ -31,6 +31,7 @@ ActiveRecord::Base.establish_connection(
 =end
 class Player < ActiveRecord::Base
   has_many :nicks
+  has_many :contacts
   def roll_rate
     total = self.roll_wins + self.roll_losses
     if(total == 0)
@@ -48,13 +49,24 @@ end
 
 =begin
 * Nick Model
-* Has attributes : player_id, nick
+* Has attributes : id, player_id, nick
 *
 *
 =end
 class Nick < ActiveRecord::Base
   belongs_to :player  
 end
+
+=begin
+* Contace Model
+* Has attributes : id, player_id, contact_type, contact_details
+*
+*
+=end
+class Contact < ActiveRecord::Base
+  belongs_to :player  
+end
+
 
 =begin
 * Method to return the local_ip
@@ -259,7 +271,12 @@ class IRC
                     # stats
                     # link
                     # unlink
-                    # changeCaps                     
+                    # changeCaps         
+                    # contacts
+                    # addContact
+                    # removeContact   
+                    # admins
+                    # mik         
                     # help
                     
                     #* * * * * * * * * * * * * * * * * * * * * * *
@@ -964,6 +981,92 @@ class IRC
                         else
                           send "PRIVMSG #{$1} :You cannot change your main nick, just the caps."
                         end
+                      else
+                        send "PRIVMSG #{$1} :Sorry you are not part of the IHL."
+                      end
+                    #* * * * * * * * * * * * * * * * * * * * * * *
+                    # !contacts
+                    # Lists this users contacts
+                    # 
+                    # 
+                    # 
+                    #
+                    #
+                    #
+                    #
+                    when "!contacts"
+                      pn = Nick.find_by_nick $1
+                      if(pn)
+                        p = pn.player
+                        if(p.contacts)
+                          send "PRIVMSG #{$1} :#{"Your Contact Details".center(50,"*")}"
+                          send "PRIVMSG #{$1} :#{"Contact ID".center(10)}#{"Contact Type".center(20)}#{"Contact Details".center(20)}"
+                          p.contacts.each do |c|
+                            send "PRIVMSG #{$1} :#{c.id.center(10)}#{c.contact_type.center(20)}#{c.contact_details}"
+                          end
+                        else
+                          send "PRIVMSG #{$1} :You have not set any contacts."
+                        end                        
+                      else
+                        send "PRIVMSG #{$1} :Sorry you are not part of the IHL."
+                      end
+                    
+                    #* * * * * * * * * * * * * * * * * * * * * * *
+                    # !addcontact
+                    # Lists this users contacts
+                    # 
+                    # 
+                    # 
+                    #
+                    #
+                    #
+                    #
+                    when "!addcontact"
+                      pn = Nick.find_by_nick $1
+                      if(pn)
+                        p = pn.player
+                        if(message[1].blank? || message[2].blank?)
+                          send "PRIVMSG #{$1} :Usage: !addcontact <contact type> <contact details>"
+                          send "PRIVMSG #{$1} :   Eg. !addcontact Cellphone 0829563399"
+                          send "PRIVMSG #{$1} : Note: Both <contact type> and <contact details> must not contain spaces."
+                        else
+                          c = new Contact
+                          c.player_id = p.id
+                          c.contact_type = message[1]
+                          c.contact_details = message[2]
+                          c.save!
+                          send "PRIVMSG #{$1} :Contact added."
+                        end    
+                      else
+                        send "PRIVMSG #{$1} :Sorry you are not part of the IHL."
+                      end  
+                    
+                    #* * * * * * * * * * * * * * * * * * * * * * *
+                    # !deletecontact
+                    # Lists this users contacts
+                    # 
+                    # 
+                    # 
+                    #
+                    #
+                    #
+                    #
+                    when "!deletecontact"
+                      pn = Nick.find_by_nick $1
+                      if(pn)
+                        p = pn.player
+                        if(message[1].blank?)
+                          send "PRIVMSG #{$1} :Usage: !deletecontact <contact id>"
+                          send "PRIVMSG #{$1} :   Eg. !deletecontact 32"
+                        else
+                          c = Contact.find(message[1])
+                          if (c && c.player_id == p.id)
+                            c.delete
+                            send "PRIVMSG #{$1} :Contact info deleted."
+                          else
+                            send "PRIVMSG #{$1} :You have specified an invalid Contact ID."
+                          end
+                        end    
                       else
                         send "PRIVMSG #{$1} :Sorry you are not part of the IHL."
                       end
