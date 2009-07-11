@@ -860,7 +860,7 @@ class IRC
                            send "PRIVMSG #{$1} :Punishes: #{player.punishes}" 
                            send "PRIVMSG #{$1} :CG Level: #{player.cg}"     
                            pn = Nick.find_by_nick($1)
-                           if((pn && pn.player.cg > 1) || (pn.player.id == player.id))
+                           if((pn && pn.player.cg > 1) || (pn && pn.player.id == player.id))
                             if(player.contacts.size == 0)
                               send "PRIVMSG #{$1} :No Contact Info."
                             else
