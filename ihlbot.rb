@@ -860,7 +860,7 @@ class IRC
                            send "PRIVMSG #{$1} :Punishes: #{player.punishes}" 
                            send "PRIVMSG #{$1} :CG Level: #{player.cg}"     
                            pn = Nick.find_by_nick($1)
-                           if((pn && pn.player.cg > 1) || (pn.player.id == player.id))
+                           if((pn && pn.player.cg > 1) || (pn && pn.player.id == player.id))
                             if(player.contacts.size == 0)
                               send "PRIVMSG #{$1} :No Contact Info."
                             else
@@ -2045,14 +2045,16 @@ end
 # If we get an exception, then print it out and keep going (we do NOT want
 # to disconnect unexpectedly!)
 irc = IRC.new('war3.co.za', 5454, 'IHLBot', 'nothello' , '#saihl')
-irc.connect()
-begin
-    irc.main_loop()    
-rescue Interrupt
-rescue Exception => detail
-    puts detail.message()
-    print detail.backtrace.join("\n")
-    ActiveRecord::Base.establish_connection(:adapter => "mysql", :host => "localhost", :database => "saihl") if detail.to_s =~ /away/   
-    retry
+while(true)
+  begin
+      irc.connect()
+      irc.main_loop()    
+  rescue Interrupt
+      break
+  rescue Exception => detail      
+      File.open("error_log.txt","a+") {|f| f.write(detail.message() + "\n" + detail.backtrace.join("\n")) }
+      puts detail.message()
+      print detail.backtrace.join("\n")
+      ActiveRecord::Base.establish_connection(:adapter => "mysql", :host => "localhost", :database => "saihl") if detail.to_s =~ /away/         
+  end
 end
-
