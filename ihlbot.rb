@@ -1291,6 +1291,14 @@ class IRC
                               c.numcapts -= 1
                               c.save!
                             end
+                            
+                            tempRemove = []
+                            @cpt.each do |c|
+                              unless(@lastgame.include? c)
+                                tempRemove << c
+                                @cpt.delete(c)
+                              end
+                            end
                                                         
                             unless(@cpt.size == 0)
                               if(@cpt.size == 1)
@@ -1321,7 +1329,9 @@ class IRC
                               @lastcaptains = Set.new
                               @lastcaptains = @lastcaptains + possible_captains.to_a[rand1] + possible_captains.to_a[rand2]
                             end    
-                            
+                            tempRemove.each do |t|
+                              @cpt << t
+                            end
                             #print out captains and players to all players in game                                                  
                             
                             @lastgame.each do |player|
@@ -1944,6 +1954,13 @@ class IRC
                     possible_captains = possible_captains + player
                   end
                 end                           
+                tempRemove = []
+                @cpt.each do |c|
+                  unless(@playerlist.include? c)
+                    tempRemove << c
+                    @cpt.delete(c)
+                  end
+                end
                 
                 unless(@cpt.size == 0)
                   if(@cpt.size == 1)
@@ -1972,6 +1989,10 @@ class IRC
                   @captains = @captains + possible_captains.to_a[rand1] + possible_captains.to_a[rand2]
                 end              
                 
+                tempRemove.each do |t|
+                  @cpt << t
+                end
+                  
                 
                             
               #print out captains and players to all players in game                                                             
