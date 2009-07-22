@@ -11,6 +11,7 @@ require "socket"
 require "rubygems"
 require "active_record"
 require "active_support"
+require "yaml"
 
 
 =begin
@@ -150,6 +151,7 @@ class IRC
             if(@source == "war3")
               @irc.send "#{s}\n", 0
             else
+              @irc.send "#{s}\n", 0
               @irc2.send "#{s}\n", 0
             end  
           end
@@ -1606,6 +1608,22 @@ class IRC
                         end
                       end
                     
+                    when "!voice"
+                      if(Nick.find_by_nick $1)
+                        if((Nick.find_by_nick $1).player.cg > 2)                        
+                            send "VOICE #{message[1]}"
+                            send "PRIVMSG #{$1} :#{message[1]} has been given voice."
+                        end
+                      end
+                      
+                    when "!devoice"
+                      if(Nick.find_by_nick $1)
+                        if((Nick.find_by_nick $1).player.cg > 2)                        
+                            send "DEVOICE #{message[1]}"
+                            send "PRIVMSG #{$1} :#{message[1]} has had voice removed."
+                        end
+                      end
+                    
                     #* * * * * * * * * * * * * * * * * * * * * * *
                     # !op
                     # gives specified player chan ops
@@ -1614,7 +1632,7 @@ class IRC
                     # 
                     when "!op"
                       if(Nick.find_by_nick $1)
-                        if((Nick.find_by_nick $1).player.cg > 2)                        
+                        if((Nick.find_by_nick $1).player.cg == 10)                        
                             send "OP #{message[1]}"
                         end
                       end
@@ -1627,7 +1645,7 @@ class IRC
                     # 
                     when "!deop"
                       if(Nick.find_by_nick $1)
-                        if((Nick.find_by_nick $1).player.cg > 2)                        
+                        if((Nick.find_by_nick $1).player.cg == 10)                        
                             send "DEOP #{message[1]}"
                         end
                       end
@@ -1825,6 +1843,16 @@ class IRC
                           end
                         end
                     
+                    when "!worstplayer"
+                      send "PRIVMSG #saihl :#{@worst_player} is by far the worst player in IHL."
+                      
+                    when "!setworst"
+                     if(Nick.find_by_nick $1)
+                          if(Nick.find_by_nick($1).player.cg == 10)
+                            @worst_player = message[1]
+                            send "PRIVMSG #{$1} :#{@worst_player} set to worst player."
+                          end
+                     end
                     #* * * * * * * * * * * * * * * * * * * * * * *
                     # !help
                     # Shows help for the bot
@@ -1938,6 +1966,7 @@ class IRC
       @source = "war3"      
       @initialising = false
       @notme = false
+      @worst_player = "Nobody"
       @log = SortedSet.new                        #array to hold the last 10 commands run
       # Just keep on truckin' until we disconnect
         while true
@@ -2065,7 +2094,9 @@ end
 # The main program
 # If we get an exception, then print it out and keep going (we do NOT want
 # to disconnect unexpectedly!)
-irc = IRC.new('war3.co.za', 5454, 'IHLBot', 'nothello' , '#saihl')
+config = YAML::load(File.open("config.yml"))
+irc = IRC.new(config["server"], config["port"] , config["username"], config["password"] , config["channel"])
+
 while(true)
   begin
       irc.connect()
@@ -2074,6 +2105,7 @@ while(true)
       break
   rescue Exception => detail      
       File.open("error_log.txt","a+") {|f| f.write(detail.message() + "\n" + detail.backtrace.join("\n")) }
+      puts Time.now
       puts detail.message()
       print detail.backtrace.join("\n")
       ActiveRecord::Base.establish_connection(:adapter => "mysql", :host => "localhost", :database => "saihl") if detail.to_s =~ /away/         
