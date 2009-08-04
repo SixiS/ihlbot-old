@@ -129,7 +129,28 @@ class IRC
         @nick = nick
         @pass = pass
         @channel = channel
-    end
+        @players = Player.find(:all, :order => "numgames DESC")
+        @trialees = 0                         #number of trialees currently in the game
+        @gamestarted = false                  #Bool for wether the game has started yet
+        @playerlist = Set.new                 #Set for the current player list
+        @startTime = 0                        #Record for when the game stars
+        #@playerlist = @playerlist + "1" + "2" + "3" + "4" + "5" + "6" + "7" + "8" + "9"
+        @captains = Set.new                   #Set for the captains
+        @lastgame = []                        #Array of the last games players
+        @lastcaptains = []                    #Array for the last games captains
+        @maxtrialees = "2"                    #Variable for the max number of trialees
+        @filltime = Time.now                  #Time when the game filled
+        @starting = false                     #bool for if the game is full
+        @DNA = {}                             #Hash for recording a players VP votes
+        @cpt = []                             #set for voulenteer captains
+        @voted = {}                           #Hash to record who has VP'd who
+        @suspended = []
+        @source = "war3"      
+        @initialising = false
+        @notme = false
+        @worst_player = "Nobody"
+        @log = SortedSet.new                        #array to hold the last 10 commands run
+     end
     
     #* * * * * * * * * * * * * * * * * * * * * * *
     # sends message s to the irc server.
@@ -1946,28 +1967,9 @@ class IRC
                 puts s
         end
     end
+    
     def main_loop()
-      @players = Player.find(:all, :order => "numgames DESC")
-      @trialees = 0                         #number of trialees currently in the game
-      @gamestarted = false                  #Bool for wether the game has started yet
-      @playerlist = Set.new                 #Set for the current player list
-      @startTime = 0                        #Record for when the game stars
-      #@playerlist = @playerlist + "1" + "2" + "3" + "4" + "5" + "6" + "7" + "8" + "9"
-      @captains = Set.new                   #Set for the captains
-      @lastgame = []                        #Array of the last games players
-      @lastcaptains = []                    #Array for the last games captains
-      @maxtrialees = "2"                    #Variable for the max number of trialees
-      @filltime = Time.now                  #Time when the game filled
-      @starting = false                     #bool for if the game is full
-      @DNA = {}                             #Hash for recording a players VP votes
-      @cpt = []                             #set for voulenteer captains
-      @voted = {}                           #Hash to record who has VP'd who
-      @suspended = []
-      @source = "war3"      
-      @initialising = false
-      @notme = false
-      @worst_player = "Nobody"
-      @log = SortedSet.new                        #array to hold the last 10 commands run
+      
       # Just keep on truckin' until we disconnect
         while true
             if @starting
@@ -2095,7 +2097,7 @@ end
 # If we get an exception, then print it out and keep going (we do NOT want
 # to disconnect unexpectedly!)
 config = YAML::load(File.open("config.yml"))
-irc = IRC.new(config["server"], config["port"] , config["username"], config["password"] , config["channel"])
+irc = IRC.new(config["server"], config["port"] , config["username"], config["password"] , '#saihl')
 
 while(true)
   begin
