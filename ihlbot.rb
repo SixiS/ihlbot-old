@@ -1930,8 +1930,8 @@ class IRC
                       else
                         send "PRIVMSG #{$1} :--HELP--"
                         send "PRIVMSG #{$1} :You are not registered as part of the South African In House League"
-                        send "PRIVMSG #{$1} :To join the league, please goto www.war3.co.za/forum and read up about the league under the \"Dota Allstars\" - \"IHL\" Section."
-                        send "PRIVMSG #{$1} :If you are supposed to be in the league, please msg SixiS or Scant to get added to this bot."
+                        send "PRIVMSG #{$1} :To join the league, please goto forum.war3.co.za and read up about the league under the \"Dota Allstars\" - \"IHL\" Section."
+                        send "PRIVMSG #{$1} :If you are supposed to be in the league, please msg SixiS, Scant or another admin to get added to this bot."
                       end
                       
                   else #end case                
