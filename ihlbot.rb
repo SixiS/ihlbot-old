@@ -24,7 +24,7 @@ config = YAML::load(File.open("config.yml"))
 ActiveRecord::Base.establish_connection(
   :adapter => "mysql",
   :host => "localhost",
-  :database => "saihl",
+  :database => config["database"],
   :username => config["database-user"]
   :password => config["database-password"]
 )
@@ -328,6 +328,7 @@ class IRC
                           
                           send "group ihl ann IHL up: use `/w ihlbot !add` to join"
                           send "PRIVMSG #saihl :IHL up: use `/w ihlbot !add` to join"
+                          send "PRIVMSG #saihl :This service is sponsored by egamer.co.za"
                         else
                           send "PRIVMSG #{$1} :Game already started!"
                         end
@@ -1985,9 +1986,11 @@ class IRC
                       
                       else
                         send "PRIVMSG #{$1} :--HELP--"
-                        send "PRIVMSG #{$1} :You are not registered as part of the South African In House League"
+                        send "PRIVMSG #{$1} :Welcome to the South African In House League sponsored by egamer.co.za"
+                        send "PRIVMSG #{$1} :You are not registered as part of the South African In House 1st League"
                         send "PRIVMSG #{$1} :To join the league, please goto forum.war3.co.za and read up about the league under the \"Dota Allstars\" - \"IHL\" Section."
-                        send "PRIVMSG #{$1} :If you are supposed to be in the league, please msg SixiS or Scant to get added to this bot."
+                        send "PRIVMSG #{$1} :If you are supposed to be in the league, please msg an admin to get added to this bot."
+                        send "PRIVMSG #{$1} :!admins - Shows a list of all the admins."
                       end
                       
                   else #end case                
