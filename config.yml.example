@@ -4,3 +4,7 @@ password: password
 server: sever.com
 port: 9112
 channel: gamechan
+
+database: databasename
+database-user: username
+database-password: password

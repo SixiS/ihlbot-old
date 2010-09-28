@@ -31,6 +31,7 @@ require "active_record"
 require "active_support"
 require "yaml"
 
+config = YAML::load(File.open("config.yml"))
 
 =begin
 * Establish connection to the MYSQL server
@@ -38,7 +39,9 @@ require "yaml"
 ActiveRecord::Base.establish_connection(
   :adapter => "mysql",
   :host => "localhost",
-  :database => "saihl2"
+  :database => config["database"],
+  :username => config["database-user"],
+  :password => config["database-password"]
 )
 
 =begin
@@ -341,6 +344,7 @@ class IRC
                           
                           send "group ihl2 ann IHL up: use `/w ihlbot !add` to join"
                           send "PRIVMSG #{@channel} :IHL up: use `/w ihlbot !add` to join"
+                          send "PRIVMSG #{@channel} :Sponsored by egamer.co.za"
                         else
                           send "PRIVMSG #{$1} :Game already started!"
                         end
@@ -1942,6 +1946,7 @@ class IRC
                       if(Nick.find_by_nick $1)
                         send "PRIVMSG #{$1} :--HELP--"
                         send "PRIVMSG #{$1} :Welcome to the SAIHL 2nd please use the commands below ;)"
+                        send "PRIVMSG #{$1} :**This service is sponsored by egamer.co.za**"
                         send "PRIVMSG #{$1} :"
                         send "PRIVMSG #{$1} :--Commands--"
                         send "PRIVMSG #{$1} :!sg - Starts a game"
@@ -2009,10 +2014,10 @@ class IRC
                       
                       else
                         send "PRIVMSG #{$1} :--HELP--"
-
+                        send "PRIVMSG #{$1} :Welcome to the South African In House League sponsored by egamer.co.za"
                         send "PRIVMSG #{$1} :You are not registered as part of the South African In House 2nd League"
                         send "PRIVMSG #{$1} :To join the league, please goto forum.war3.co.za and read up about the league under the \"Dota Allstars\" - \"IHL\" Section."
-                        send "PRIVMSG #{$1} :If you are supposed to be in the league, please msg Orange or another admin to get added to this bot."
+                        send "PRIVMSG #{$1} :If you are supposed to be in the league, please msg an admin to get added to this bot."
                         send "PRIVMSG #{$1} :!admins - Shows a list of all the admins."
 
                       end
@@ -2158,7 +2163,6 @@ end
 # The main program
 # If we get an exception, then print it out and keep going (we do NOT want
 # to disconnect unexpectedly!)
-config = YAML::load(File.open("config.yml"))
 irc = IRC.new(config["server"], config["port"] , config["username"], config["password"] , "#saihl2")
 
 while(true)
