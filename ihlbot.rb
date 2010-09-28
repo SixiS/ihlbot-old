@@ -1,3 +1,21 @@
+=begin
+This code is, to put it lightly... HORRIBLE
+
+IT IS WET, BRITTLE AND BADLY WRITTEN.
+
+Under no circumstances should it be used anywhere where it's stability is important!
+
+This entire script started off as a way for me to learn some ruby
+and sockets... It has since mutated into an IHL bot with limbs, 
+users, nicks and other appendages sticky taped on.
+
+That being said... it kinda works so if you want to use it... be my guest :)
+
+Matthew Hirst
+=end
+
+
+
 #!/usr/local/bin/ruby
 
 =begin
@@ -20,12 +38,12 @@ require "yaml"
 ActiveRecord::Base.establish_connection(
   :adapter => "mysql",
   :host => "localhost",
-  :database => "saihl"
+  :database => "saihl2"
 )
 
 =begin
 * Player Model
-* Has attributes : id, nick, cg, numgames, numcaps, roll_wins, roll_losses
+* Has attributes : id, nick, trial, ihl, cg, numgames, numcaps, roll_wins, roll_losses
 * Virtual Attributes: roll_rate, points
 *
 *
@@ -131,6 +149,7 @@ class IRC
         @channel = channel
         @players = Player.find(:all, :order => "numgames DESC")
         @trialees = 0                         #number of trialees currently in the game
+        @ihlees = 0
         @gamestarted = false                  #Bool for wether the game has started yet
         @playerlist = Set.new                 #Set for the current player list
         @startTime = 0                        #Record for when the game stars
@@ -139,6 +158,7 @@ class IRC
         @lastgame = []                        #Array of the last games players
         @lastcaptains = []                    #Array for the last games captains
         @maxtrialees = "2"                    #Variable for the max number of trialees
+        @maxihlees = "2"
         @filltime = Time.now                  #Time when the game filled
         @starting = false                     #bool for if the game is full
         @DNA = {}                             #Hash for recording a players VP votes
@@ -146,9 +166,9 @@ class IRC
         @voted = {}                           #Hash to record who has VP'd who
         @suspended = []
         @source = "war3"      
-        @initialising = false
-        @notme = false
+        @initialising = false       
         @worst_player = "Nobody"
+        @worst_message = "Nothing"
         @log = SortedSet.new                        #array to hold the last 10 commands run
      end
     
@@ -162,21 +182,21 @@ class IRC
         # Send a message to the irc server and print it to the screen
         puts "--> #{s}"
         #puts s       
-         if(s.split(" ")[0].downcase == "group")
-          @irc.send "#{s}\n", 0
+        if(s.split(" ")[0].downcase == "group")
+         @irc.send "#{s}\n", 0
+        else
+         if(s.split(" ")[1] == "#saihl" || @initialising || @source == "both")
+           @irc.send "#{s}\n", 0
+           @irc2.send "#{s}\n", 0
          else
-          if(s.split(" ")[1] == "#saihl" || @initialising || @source == "both")
-            @irc.send "#{s}\n", 0
-            @irc2.send "#{s}\n", 0
-          else
-            if(@source == "war3")
-              @irc.send "#{s}\n", 0
-            else
-              @irc.send "#{s}\n", 0
-              @irc2.send "#{s}\n", 0
-            end  
-          end
+           if(@source == "war3")
+             @irc.send "#{s}\n", 0
+           else
+             @irc.send "#{s}\n", 0
+             @irc2.send "#{s}\n", 0
+           end  
          end
+        end
     end
     
     #* * * * * * * * * * * * * * * * * * * * * * *
@@ -195,7 +215,8 @@ class IRC
         send "PASS #{@pass}"        
         send "NICK #{@nick}"        
         send "JOIN #{@channel}"
-        @initialising = false       
+        send "MODE #{@nick} +B"
+	@initialising = false       
     end
     
     #* * * * * * * * * * * * * * * * * * * * * * *
@@ -314,15 +335,16 @@ class IRC
                         if @gamestarted == false
                           @gamestarted = true
                           @trialees = 0
+                          @ihlees = 0
                           send "PRIVMSG #{$1} :Game started!"
                           
-                          send "group ihl ann IHL up: use `/w ihlbot !add` to join"
-                          send "PRIVMSG #saihl :IHL up: use `/w ihlbot !add` to join"
+                          send "group ihl2 ann IHL up: use `/w ihlbot !add` to join"
+                          send "PRIVMSG #{@channel} :IHL up: use `/w ihlbot !add` to join"
                         else
                           send "PRIVMSG #{$1} :Game already started!"
                         end
                       else
-                         send "PRIVMSG #{$1} :Sorry, you are not registered as part of the SAIHL."
+                         send "PRIVMSG #{$1} :Sorry, you are not registered as part of the SAIHL2nd."
                       end
                       
                     #* * * * * * * * * * * * * * * * * * * * * * *
@@ -347,7 +369,7 @@ class IRC
                            @starting = false
                                                      
                            send "PRIVMSG #{$1} :You have cancelled the game!"                      
-                           send "PRIVMSG #saihl :The game has been cancelled!"                      
+                           send "PRIVMSG #{@channel} :The game has been cancelled!"                      
                            
                         else
                           if @gamestarted == false
@@ -357,7 +379,7 @@ class IRC
                           end
                         end
                       else
-                         send "PRIVMSG #{$1} :Sorry, you are not registered as part of the SAIHL."
+                         send "PRIVMSG #{$1} :Sorry, you are not registered as part of the SAIHL2nd."
                       end
                     
                     #* * * * * * * * * * * * * * * * * * * * * * *
@@ -375,7 +397,7 @@ class IRC
                         if((Time.now - adder.punished_at) > 24.hours) 
                           if @gamestarted == true
                             #send "PRIVMSG #{$1} :This will add!"
-                            if @playerlist.size < 10
+                            if @playerlist.size < 20
                               ingame = false
                               @playerlist.each do |p|
                                 if p.downcase == adder.nick.downcase
@@ -384,9 +406,12 @@ class IRC
                               end
                               
                               unless ingame
-                                if(adder.trial == false || @trialees < Integer(@maxtrialees) )
+                                if((adder.trial == false || @trialees < Integer(@maxtrialees)) && (adder.ihl == false || @ihlees < Integer(@maxihlees)) )
                                   if(adder.trial == true)
                                     @trialees = @trialees + 1
+                                  end
+                                  if(adder.ihl == true)
+                                    @ihlees = @ihlees + 1
                                   end
                                   @playerlist << adder.nick
                                   send "PRIVMSG #{$1} :You have been added to the game!"
@@ -400,9 +425,9 @@ class IRC
                                    end
                                   end
                                   #@source = temp                                
-                                  send "PRIVMSG #saihl :Current Players: (#{@playerlist.size.to_s}) #{@playerlist.to_a.join(", ")}" 
+                                  send "PRIVMSG #{@channel} :Current Players: (#{@playerlist.size.to_s}) #{@playerlist.to_a.join(", ")}" 
                                   
-                                  if @playerlist.size == 10 #start the game
+                                  if @playerlist.size >= 10 #start the game
                                      #STAaart
                                      @filltime = Time.now
                                      @starting = true
@@ -415,7 +440,7 @@ class IRC
                                        end
                                      end
                                      #@source = temp
-                                     send "PRIVMSG #saihl :**The game is full and will start in 1 minute. During this time admins/players can still make changes to the current players."                              
+                                     send "PRIVMSG #{@channel} :**The game is full and will start in 1 minute. During this time admins/players can still make changes to the current players."                              
                                   end
                                   
                                 else
@@ -435,7 +460,7 @@ class IRC
                           send "PRIVMSG #{$1} :You are still punished and cannot join an ihl for another #{24 - Integer((Time.now - Nick.find_by_nick($1).player.punished_at)/60/60)} hours!"
                         end
                       else
-                         send "PRIVMSG #{$1} :Sorry, you are not registered as part of the SAIHL."
+                         send "PRIVMSG #{$1} :Sorry, you are not registered as part of the SAIHL2nd."
                       end
                     
                     #* * * * * * * * * * * * * * * * * * * * * * *
@@ -459,6 +484,9 @@ class IRC
                           if (remover.trial == true)
                             @trialees = @trialees - 1
                           end
+                          if (remover.ihl == true)
+                            @ihlees = @ihlees -1
+                          end
                           send "PRIVMSG #{$1} :You have been removed from the game!"
                           #temp = @source
                           #@source = "both"
@@ -469,9 +497,8 @@ class IRC
                                send "PRIVMSG #{n.nick} :Current Players: (#{@playerlist.size.to_s}) #{@playerlist.to_a.join(", ")}" 
                              end
                           end
-                          #@source = temp
-                          
-                          if(@starting)
+                          #@source = temp                     
+                          if(@starting && @playerlist.size < 10)
                             @starting = false
                             @playerlist.each do |player|
                              p = Player.find_by_nick player
@@ -482,13 +509,13 @@ class IRC
                           end
                           
                                                      
-                          send "PRIVMSG #saihl :Current Players: (#{@playerlist.size.to_s}) #{@playerlist.to_a.join(", ")}" 
+                          send "PRIVMSG #{@channel} :Current Players: (#{@playerlist.size.to_s}) #{@playerlist.to_a.join(", ")}" 
                         else
                           send "PRIVMSG #{$1} :You are not in the IHL game"
                         
                         end                      
                       else
-                        send "PRIVMSG #{$1} :Sorry, you are not registered as part of the SAIHL."
+                        send "PRIVMSG #{$1} :Sorry, you are not registered as part of the SAIHL2nd."
                         
                       end
                     
@@ -514,7 +541,7 @@ class IRC
                           send "PRIVMSG #{$1} :Sorry, you are on trial and trialees cant be captain."
                         end
                       else
-                        send "PRIVMSG #{$1} :Sorry, you are not registered as part of the SAIHL."
+                        send "PRIVMSG #{$1} :Sorry, you are not registered as part of the SAIHL2nd."
                       end
                     
                     #* * * * * * * * * * * * * * * * * * * * * * *
@@ -562,7 +589,7 @@ class IRC
                       unless @lastgame.size == 0
                           send "PRIVMSG #{$1} :Started at : #{@startTime.strftime("%I:%M %p on %A %d %B %Y")}" 
                           send "PRIVMSG #{$1} :Captains: #{@lastcaptains.to_a.join(", ")}" 
-                          send "PRIVMSG #{$1} :Players: #{@lastgame.join(", ")}" 
+                          send "PRIVMSG #{$1} :Players: (#{@lastgame.size}) #{@lastgame.join(", ")}" 
                       else
                           send "PRIVMSG #{$1} :No Game being played!"
                       end                    
@@ -611,10 +638,10 @@ class IRC
                                             send "PRIVMSG #{n.nick} :#{message[1]} has been punished for not showing up for the game!"
                                           end
                                         end
-                                        send "PRIVMSG #saihl :#{message[1]} has been punished for not showing up for the game! Make sure if you go AFK that you !remove"
+                                        send "PRIVMSG #{@channel} :#{message[1]} has been punished for not showing up for the game! Make sure if you go AFK that you !remove"
                                       else
                                         send "PRIVMSG #{$1} :Your vote has been added, that player now has #{@DNA["#{message[1]}"]} DNA votes. (6 needed to punish)"
-                                        send "PRIVMSG #saihl :#{message[1]} has #{@DNA["#{message[1]}"]} VP votes. (6 needed to punish)"
+                                        send "PRIVMSG #{@channel} :#{message[1]} has #{@DNA["#{message[1]}"]} VP votes. (6 needed to punish)"
                                         @lastgame.each do |player|
                                           p = Player.find_by_nick player
                                           p.nicks.each do |n|
@@ -880,6 +907,7 @@ class IRC
                            end
                            send "PRIVMSG #{$1} :Roll win rate: #{roll_win_rate} (w:#{player.roll_wins} l:#{player.roll_losses})"
                            send "PRIVMSG #{$1} :On Trial?: #{player.trial ? "Yes" : "No" }"
+                           send "PRIVMSG #{$1} :IHL 1st member?: #{player.ihl ? "Yes" : "No" }"
                            send "PRIVMSG #{$1} :Punishes: #{player.punishes}" 
                            send "PRIVMSG #{$1} :CG Level: #{player.cg}"     
                            pn = Nick.find_by_nick($1)
@@ -917,7 +945,7 @@ class IRC
                                 n.player_id = p.id
                                 n.nick = message[1]
                                 n.save!
-                                send "group ihl member +#{message[1]}"
+                                send "group ihl2 member +#{message[1]}"
                                 send "PRIVMSG #{$1} :#{message[1]} has been linked to your account."
                               else                          
                                 send "PRIVMSG #{$1} :Sorry that nick is already registed to another player."
@@ -954,7 +982,7 @@ class IRC
                           if(n)
                             unless(n.nick == p.nick)
                               Nick.delete(n)
-                              send "group ihl member -#{message[1]}"
+                              send "group ihl2 member -#{message[1]}"
                               send "PRIVMSG #{$1} :Nick #{message[1]} has been unlinked from your account."
                             else
                               send "PRIVMSG #{$1} :You cannot unlink your main nick."
@@ -967,7 +995,7 @@ class IRC
                                   n.player.nicks.each do |nick|
                                     send "PRIVMSG #{nick.nick} :An admin has unlinked #{message[1]} from your account."                   
                                   end
-                                  send "group ihl member -#{message[1]}"
+                                  send "group ihl2 member -#{message[1]}"
                                   send "PRIVMSG #{$1} :#{n.nick} has been unlinked from #{n.player.nick}."   
                                   Nick.delete(n)                                
                                 else
@@ -1105,6 +1133,16 @@ class IRC
                         send "PRIVMSG #{$1} :Sorry you are not part of the IHL."
                       end
                     
+                    when "!roulette", "!rr"
+                      if($4 == "#{@channel}")
+                        if(rand(3) == 2)
+                          send "PRIVMSG #{@channel} :#{$1} lost the game... BANG!"
+                          send "KICK #{@channel} #{$1} :YOU LOST LOL!"                          
+                        else
+                          send "PRIVMSG #{@channel} :#{$1} survived :D!"
+                        end
+                      end
+                      
                     when "!mik"
                       @players = Player.find(:all, :order => "numgames DESC")
                       mik = rand(@players.length)-1
@@ -1152,9 +1190,9 @@ class IRC
                           #send "PRIVMSG #{$1} :Deprecated (saidin wants you to use): please use `/group ihl announce <message>`"
                           send "PRIVMSG #{$1} :Message has been announced!"
                           unless(message.join.blank?)
-                            send "group ihl ann #{$1}: #{(message.join(' ')).to_s}"
+                            send "group ihl2 ann #{$1}: #{(message.join(' ')).to_s}"
                           else
-                            send "group ihl ann IHL up: use `/w ihlbot !add` to join"
+                            send "group ihl2 ann IHL up: use `/w ihlbot !add` to join"
                           end
                         end
                       end
@@ -1178,6 +1216,7 @@ class IRC
                             if(@playerlist.include? removee.player.nick)
                              @playerlist.delete removee.player.nick
                               @trialees = @trialees-1 if removee.player.trial == true
+                              @ihlees = @ihlees-1 if removee.player.ihl == true
                               done = true
                             end
                           end
@@ -1198,9 +1237,9 @@ class IRC
                               end
                             end
                             #@source = temp
-                            send "PRIVMSG #saihl :Current Players: (#{@playerlist.size.to_s}) #{@playerlist.to_a.join(", ")}"
+                            send "PRIVMSG #{@channel} :Current Players: (#{@playerlist.size.to_s}) #{@playerlist.to_a.join(", ")}"
                             
-                            if(@starting == true)
+                            if(@starting && @playerlist.size < 10)
                               @starting = false
                               @playerlist.each do |player|
                                p = Player.find_by_nick player
@@ -1318,9 +1357,11 @@ class IRC
                             tempRemove = []
                             @cpt.each do |c|
                               unless(@lastgame.include? c)
-                                tempRemove << c
-                                @cpt.delete(c)
+                                tempRemove << c                                
                               end
+                            end
+                            tempRemove.each do |c|
+                              @cpt.delete(c)
                             end
                                                         
                             unless(@cpt.size == 0)
@@ -1341,12 +1382,10 @@ class IRC
                               end
                             
                             else
-                              rand1 = rand(possible_captains.length)
-                              while (@notme && possible_captains.to_a[rand1] == "SixiS")
-                                rand1 = rand(possible_captains.length)
-                              end
+                              rand1 = rand(possible_captains.length)          
+                         
                               rand2 = rand(possible_captains.length)
-                              while ((rand1 == rand2) || (@notme && possible_captains.to_a[rand2] == "SixiS"))                                              
+                              while (rand1 == rand2)                                              
                                   rand2 = rand(possible_captains.length)                             
                               end
                               @lastcaptains = Set.new
@@ -1360,7 +1399,7 @@ class IRC
                             @lastgame.each do |player|
                               p = Player.find_by_nick player
                               p.nicks.each do |n|
-                                send "PRIVMSG #{n.nick} :-New Capatains have been chosen!-"
+                                send "PRIVMSG #{n.nick} :-New Captains have been chosen!-"
                                 send "PRIVMSG #{n.nick} :Captains: #{@lastcaptains.to_a.join(", ")}" 
                               end
                             end
@@ -1400,7 +1439,7 @@ class IRC
                             n.nick = message[1]
                             p.nicks << n
                             p.save!
-                            send "group ihl member +#{message[1]}"
+                            send "group ihl2 member +#{message[1]}"
                             send "PRIVMSG #{$1} :Player #{message[1]} added to the IHL"
                             send "PRIVMSG #{message[1]} :You have been added to the IHL!"
                           end
@@ -1430,9 +1469,40 @@ class IRC
                             n.nick = message[1]
                             p.nicks << n
                             p.save!
-                            send "group ihl member +#{message[1]}"
+                            send "group ihl2 member +#{message[1]}"
                             send "PRIVMSG #{$1} :Trialee #{message[1]} added to the IHL"
                             send "PRIVMSG #{message[1]} :You have been added to the IHL on a trial basis!"
+                          end
+                        end
+                      end
+                    
+                    #* * * * * * * * * * * * * * * * * * * * * * *
+                    # !addIHLee
+                    # Adds an IHL player to the SAIHL2 database
+                    # 
+                    # 
+                    # 
+                    #
+                    #
+                    #
+                    #
+                    when "!addihlee"
+                      if(Nick.find_by_nick $1)
+                        if((Nick.find_by_nick $1).player.cg > 1)
+                          if(Nick.find_by_nick message[1])
+                            send "PRIVMSG #{$1} :Player \"#{message[1]}\" already exists in the IHL"
+                          else
+                            p = Player.new
+                            p.nick = message[1]
+                            p.trial = 0
+                            p.ihl = 1
+                            n = Nick.new
+                            n.nick = message[1]
+                            p.nicks << n
+                            p.save!
+                            send "group ihl2 member +#{message[1]}"
+                            send "PRIVMSG #{$1} :Player #{message[1]} added to the IHL"
+                            send "PRIVMSG #{message[1]} :You have been added to the IHL!"
                           end
                         end
                       end
@@ -1484,6 +1554,8 @@ class IRC
                           if(Nick.find_by_nick message[1])
                             if((Nick.find_by_nick message[1]).player.trial == true)
                               send "PRIVMSG #{$1} :Player \"#{message[1]}\" is already on trial."
+                            elsif((Nick.find_by_nick message[1]).player.ihl == true)
+                              send "PRIVMSG #{$1} :Player \"#{message[1]}\" is an ihlee and cannot be demoted to trialee status."
                             else
                               p = Nick.find_by_nick(message[1]).player
                               p.trial = true
@@ -1519,13 +1591,22 @@ class IRC
                             p = nil
                           end
                           if(p)
-                            p.nicks.each do |n|
-                              send "PRIVMSG #{n.nick} :You have been removed from the IHL by #{$1}"
-                              Nick.delete(n)
-                            end
-                            Player.delete(p)                            
-                            send "group ihl member -#{message[1]}"
-                            send "PRIVMSG #{$1} :Player \"#{message[1]}\" removed from the IHL"                            
+                            if(p.cg > 1)
+                               send "PRIVMSG #{$1} :Cannot delete admins!"                        
+                            else
+                              p.nicks.each do |n|
+                                send "PRIVMSG #{n.nick} :You have been removed from the IHL by #{$1}"
+                                Nick.delete(n)
+                              end
+                              @playerlist.each do |pl|
+                                if pl.downcase == p.nick.downcase
+                                    @playerlist.delete(pl)
+                                 end 
+                               end
+                              Player.delete(p)                            
+                              send "group ihl2 member -#{message[1]}"
+                              send "PRIVMSG #{$1} :Player \"#{message[1]}\" removed from the IHL"                        
+                            end    
                           else
                             send "PRIVMSG #{$1} :Player \"#{message[1]}\" does not exists in the IHL"
                           end
@@ -1559,6 +1640,32 @@ class IRC
                       end
                     
                     #* * * * * * * * * * * * * * * * * * * * * * *
+                    # !maxIHLees
+                    # Sets the max number of trialees allowed in this game
+                    # 
+                    # 
+                    # 
+                    #
+                    #
+                    #
+                    #
+                    when "!maxihlees"
+                      if(Nick.find_by_nick $1)
+                        if((Nick.find_by_nick $1).player.cg > 1)                        
+                          if(message[1].blank?)
+                            send "PRIVMSG #{sender} :Max IHLees : #{@maxihlees}"             
+                          else                            
+                            if(/^([1-9])*$/.match(message[1]))                               
+                              @maxihlees = message[1]
+                              send "PRIVMSG #{sender} :Max IHlees set to #{@maxtrialees}"             
+                            else
+                              send "PRIVMSG #{sender} :MaxIHlees must be set to a number less than 8!"             
+                            end               
+                          end
+                        end
+                      end
+                    
+                    #* * * * * * * * * * * * * * * * * * * * * * *
                     # !log
                     # Displays the last 10 commands used
                     # 
@@ -1571,7 +1678,7 @@ class IRC
                     when "!log"
                       if(Nick.find_by_nick $1)
                         if((Nick.find_by_nick $1).player.cg > 1) 
-                          @log.each do |l|
+                          @log.to_a.reverse.each do |l|
                             send "PRIVMSG #{$1} :#{l}"
                           end
                         end
@@ -1585,7 +1692,7 @@ class IRC
                     # unban
 #------------------## op
                     # deop
-                    # moderate
+                    # moderatdeletee
                     #
                     
                     #* * * * * * * * * * * * * * * * * * * * * * *
@@ -1597,7 +1704,7 @@ class IRC
                     when "!kick"
                       if(Nick.find_by_nick $1)
                         if((Nick.find_by_nick $1).player.cg > 2)                        
-                            send "KICK #saihl #{message[1]} :Kicked by #{$1}."
+                            send "KICK #{@channel} #{message[1]} :Kicked by #{$1}."
                         end
                       end
                     
@@ -1653,7 +1760,7 @@ class IRC
                     # 
                     when "!op"
                       if(Nick.find_by_nick $1)
-                        if((Nick.find_by_nick $1).player.cg == 10)                        
+                        if((Nick.find_by_nick $1).player.cg > 10)                        
                             send "OP #{message[1]}"
                         end
                       end
@@ -1666,7 +1773,7 @@ class IRC
                     # 
                     when "!deop"
                       if(Nick.find_by_nick $1)
-                        if((Nick.find_by_nick $1).player.cg == 10)                        
+                        if((Nick.find_by_nick $1).player.cg > 10)                        
                             send "DEOP #{message[1]}"
                         end
                       end
@@ -1705,83 +1812,28 @@ class IRC
                     # 
                     when "!setcg"
                       if(Nick.find_by_nick $1)
-                        if((Nick.find_by_nick $1).player.cg == 10)
+                        if((Nick.find_by_nick $1).player.cg > 9)
                           if(Nick.find_by_nick message[1])
                               p = Nick.find_by_nick(message[1]).player
-                              p.cg = message[2]
+                              if(p.nick == "SixiS")
+                                p.cg = message[2]
+                              else
+                                if(message[2].to_i > 10)
+                                  p.cg = 10
+                                else
+                                  p.cg = message[2]
+                                end
+                              end
                               p.save!
-                            send "PRIVMSG #{$1} :Player \"#{message[1]}\" CG level set to #{message[2]}"
-                            send "PRIVMSG #{message[1]} :Your CG level has been set to #{message[2]}"
+                            send "PRIVMSG #{$1} :Player \"#{message[1]}\" CG level set to #{p.cg}"
+                            send "PRIVMSG #{message[1]} :Your CG level has been set to #{p.cg}"
                           else
                             send "PRIVMSG #{$1} :Player \"#{message[1]}\" does not exists in the IHL"
                           end
                         end
                       end
                     
-                    #* * * * * * * * * * * * * * * * * * * * * * *
-                    # !remindplayers
-                    # Reminds players in the game to join
-                    # 
-                    # 
-                    # 
-                    when "!remindplayers"
-                      if(Nick.find_by_nick $1)
-                        if((Nick.find_by_nick $1).player.cg > 1)                        
-                            @lastgame.each do |player|
-                              send "PRIVMSG #{player} :Your game has started, please join."
-                              
-                            end
-                        end
-                      end
-                    
-                    #* * * * * * * * * * * * * * * * * * * * * * *
-                    # !getip
-                    # Returns the bots local ip
-                    # if a random parameter is given it returns the
-                    # international ip
-                    # 
-                    when "!getip"
-                      if(Nick.find_by_nick $1)
-                        if((Nick.find_by_nick $1).player.cg == 10)
-                          if(message[1].blank?)
-                            send "PRIVMSG #{$1} :#{local_ip}"
-                          else
-                            send "PRIVMSG #{$1} :#{international_ip}"
-                          end
-                        end
-                      end
-                      
-                    #* * * * * * * * * * * * * * * * * * * * * * *
-                    # !spam
-                    # Spams specified player
-                    # 
-                    # 
-                    # 
-                    when "!spam"
-                      if(Nick.find_by_nick $1)
-                        if((Nick.find_by_nick $1).player.cg == 10)
-                          unless((Nick.find_by_nick $1).player.cg > 4)
-                            100.times do
-                              send "PRIVMSG #{message[1]} :#{$1*16}"
-                            end
-                          else
-                            message.delete(message[0])
-                            spamee = message[0]
-                            message.delete(message[0])                            
-                            100.times do
-                              unless(message[0].blank?)
-                                send "PRIVMSG #{spamee} :#{message.join(" ")*16}"
-                              else
-                                send "PRIVMSG #{spamee} :#{$1*16}"
-                              end
-                            end
-                          end
-                          send "PRIVMSG #{$1} :#{spamee} has been spammed!"
-                        else
-                          send "PRIVMSG #{$1} :Sorry, you do not have access to that command"
-                        end
-                      end
-                    
+                                      
                     #* * * * * * * * * * * * * * * * * * * * * * * * * * * * * 
                     # !updateplayers
                     # Creates a nick for each player from their default nick
@@ -1851,27 +1903,19 @@ class IRC
                           end
                       end
                       
-                    when "!notme"
-                       if(Nick.find_by_nick $1)
-                          if(Nick.find_by_nick($1).player.cg == 10)
-                            if(@notme == false)
-                              send "PRIVMSG #{$1} :notme set to true"
-                              @notme = true;
-                            else
-                              send "PRIVMSG #{$1} :notme set to false"
-                              @notme = false;
-                            end
-                          end
-                        end
-                    
-                    when "!worstplayer"
-                      send "PRIVMSG #saihl :#{@worst_player} is by far the worst player in IHL."
+                                      
+                    when "!worstplayer", "!worst"
+                      send "PRIVMSG #{@channel} :#{@worst_player} is by far the #{@worst_message} in IHL."
                       
                     when "!setworst"
                      if(Nick.find_by_nick $1)
-                          if(Nick.find_by_nick($1).player.cg == 10)
+                          if(Nick.find_by_nick($1).player.cg > 9)
                             @worst_player = message[1]
-                            send "PRIVMSG #{$1} :#{@worst_player} set to worst player."
+                            2.times do 
+                                message.delete(message[0])
+                            end
+                            @worst_message = message.join(" ")
+                            send "PRIVMSG #{$1} :#{@worst_player} set to #{@worst_message}."
                           end
                      end
                     #* * * * * * * * * * * * * * * * * * * * * * *
@@ -1883,7 +1927,7 @@ class IRC
                     when "!help"
                       if(Nick.find_by_nick $1)
                         send "PRIVMSG #{$1} :--HELP--"
-                        send "PRIVMSG #{$1} :Welcome to the SAIHL please use the commands below ;)"
+                        send "PRIVMSG #{$1} :Welcome to the SAIHL 2nd please use the commands below ;)"
                         send "PRIVMSG #{$1} :"
                         send "PRIVMSG #{$1} :--Commands--"
                         send "PRIVMSG #{$1} :!sg - Starts a game"
@@ -1928,6 +1972,7 @@ class IRC
                           send "PRIVMSG #{$1} :!demotePlayer <nick>  -  Demotes player to trail status."
                           send "PRIVMSG #{$1} :!deletePlayer <nick>  -  Removes player from the IHL."
                           send "PRIVMSG #{$1} :!maxTrialees [number]  -  Sets the max number of trialees. If no number is given it displays the max trialees."
+                          send "PRIVMSG #{$1} :!maxIHLees [number]  -  Sets the max number of IHLees. If no number is given it displays the max IHLees."
                           send "PRIVMSG #{$1} :!log - Shows the last 10 commands used."
                           send "PRIVMSG #{$1} :!unlink <nick> - un-links given nick any player. NOTE: YOU MUST BE ON YOUR MAIN NICK AND ON WAR3"
                         end
@@ -1937,8 +1982,8 @@ class IRC
                           send "PRIVMSG #{$1} :!kick <nick>  -  Kicks player from the SAIHL channel."
                           send "PRIVMSG #{$1} :!ban <nick>  -  Bans player from the SAIHL channel."
                           send "PRIVMSG #{$1} :!unban <nick>  -  Removes the ban from the SAIHL channel."
-                          send "PRIVMSG #{$1} :!op <nick>  -  Gives <nick> chanops."
-                          send "PRIVMSG #{$1} :!deop <nick>  -  Removes chanops from <nick>."
+                          send "PRIVMSG #{$1} :!voice <nick>  -  Gives <nick> voice."
+                          send "PRIVMSG #{$1} :!devoice <nick>  -  Removes voice from <nick>."
                           send "PRIVMSG #{$1} :!moderate <nick>  -  Moderates or Un-moderates the channel."
                           
                         end
@@ -1950,16 +1995,17 @@ class IRC
                       
                       else
                         send "PRIVMSG #{$1} :--HELP--"
-                        send "PRIVMSG #{$1} :You are not registered as part of the South African In House League"
-                        send "PRIVMSG #{$1} :To join the league, please goto www.war3.co.za/forum and read up about the league under the \"Dota Allstars\" - \"IHL\" Section."
-                        send "PRIVMSG #{$1} :If you are supposed to be in the league, please msg SixiS or Scant to get added to this bot."
+                        send "PRIVMSG #{$1} :You are not registered as part of the South African In House 2nd League"
+                        send "PRIVMSG #{$1} :To join the league, please goto forum.war3.co.za and read up about the league under the \"Dota Allstars\" - \"IHL\" Section."
+                        send "PRIVMSG #{$1} :If you are supposed to be in the league, please msg Orange or another admin to get added to this bot."
+                        send "PRIVMSG #{$1} :!admins - Shows a list of all the admins."
                       end
                       
                   else #end case                
                     #puts s
                   end
                   
-                  #send "PRIVMSG #saihl :#{$5}"
+                  #send "PRIVMSG #{@channel} :#{$5}"
                 else
                   send "PRIVMSG #{$1} :Sorry, but you are suspended from bot use."
                 end #end if true
@@ -1988,9 +2034,11 @@ class IRC
                 tempRemove = []
                 @cpt.each do |c|
                   unless(@playerlist.include? c)
-                    tempRemove << c
-                    @cpt.delete(c)
+                    tempRemove << c                    
                   end
+                end
+                tempRemove.each do |c|
+                  @cpt.delete(c)
                 end
                 
                 unless(@cpt.size == 0)
@@ -2009,12 +2057,10 @@ class IRC
                   end
                 
                 else
-                  rand1 = rand(possible_captains.length)
-                  while (@notme && possible_captains.to_a[rand1] == "SixiS")
-                    rand1 = rand(possible_captains.length)
-                  end
+                  rand1 = rand(possible_captains.length)                 
+                 
                   rand2 = rand(possible_captains.length)
-                  while ((rand1 == rand2) || (@notme && possible_captains.to_a[rand2] == "SixiS"))                             
+                  while (rand1 == rand2)                             
                       rand2 = rand(possible_captains.length)                             
                   end
                   @captains = @captains + possible_captains.to_a[rand1] + possible_captains.to_a[rand2]
@@ -2042,12 +2088,12 @@ class IRC
                   end                      
                 end     
                     
-                send "PRIVMSG #saihl :****************************************"
-                send "PRIVMSG #saihl :-Teams Finalised And game is starting! Captains and Players below!-"
-                send "PRIVMSG #saihl :Captains: #{@captains.to_a.join(", ")}" 
-                send "PRIVMSG #saihl :Players: #{@playerlist.to_a.join(" ")}"
-                send "PRIVMSG #saihl :-Please join the game!-"
-                send "PRIVMSG #saihl :****************************************"
+                send "PRIVMSG #{@channel} :****************************************"
+                send "PRIVMSG #{@channel} :-Teams Finalised And game is starting! Captains and Players below!-"
+                send "PRIVMSG #{@channel} :Captains: #{@captains.to_a.join(", ")}" 
+                send "PRIVMSG #{@channel} :Players: #{@playerlist.to_a.join(" ")}"
+                send "PRIVMSG #{@channel} :-Please join the game!-"
+                send "PRIVMSG #{@channel} :****************************************"
                 
                   #move lists to lastgame 
                 @captains.each do |captain|
@@ -2097,19 +2143,20 @@ end
 # If we get an exception, then print it out and keep going (we do NOT want
 # to disconnect unexpectedly!)
 config = YAML::load(File.open("config.yml"))
-irc = IRC.new(config["server"], config["port"] , config["username"], config["password"] , '#saihl')
+irc = IRC.new(config["server"], config["port"] , config["username"], config["password"] , "#saihl2")
 
 while(true)
   begin
       irc.connect()
-      irc.main_loop()    
+      irc.main_loop()
   rescue Interrupt
       break
   rescue Exception => detail      
-      File.open("error_log.txt","a+") {|f| f.write(detail.message() + "\n" + detail.backtrace.join("\n")) }
+      File.open("error_log.txt","a+") {|f| f.write(Time.now.to_s + " " + detail.message() + "\n" + detail.backtrace.join("\n")) }
       puts Time.now
       puts detail.message()
       print detail.backtrace.join("\n")
-      ActiveRecord::Base.establish_connection(:adapter => "mysql", :host => "localhost", :database => "saihl") if detail.to_s =~ /away/         
+      ActiveRecord::Base.establish_connection(:adapter => "mysql", :host => "localhost", :database => "saihl2") if detail.to_s =~ /away/         
   end
+  sleep(10)
 end
