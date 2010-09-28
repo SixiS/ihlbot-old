@@ -186,21 +186,22 @@ class IRC
         # Send a message to the irc server and print it to the screen
         puts "--> #{s}"
         #puts s       
-        if(s.split(" ")[0].downcase == "group")
-         @irc.send "#{s}\n", 0
-        else
-         if(s.split(" ")[1] == "#{@channel}" || @initialising || @source == "both")
-           @irc.send "#{s}\n", 0
-           @irc2.send "#{s}\n", 0
-         else
-           if(@source == "war3")
-             @irc.send "#{s}\n", 0
-           else
-             @irc.send "#{s}\n", 0
-             @irc2.send "#{s}\n", 0
-           end  
-         end
-        end
+        @irc.send "#{s}\n", 0
+        # if(s.split(" ")[0].downcase == "group")
+        #          @irc.send "#{s}\n", 0
+        #         else
+        #          if(s.split(" ")[1] == "#{@channel}" || @initialising || @source == "both")
+        #            @irc.send "#{s}\n", 0
+        #            @irc2.send "#{s}\n", 0
+        #          else
+        #            if(@source == "war3")
+        #              @irc.send "#{s}\n", 0
+        #            else
+        #              @irc.send "#{s}\n", 0
+        #              @irc2.send "#{s}\n", 0
+        #            end  
+        #          end
+        #         end
     end
     
     #* * * * * * * * * * * * * * * * * * * * * * *
@@ -213,7 +214,7 @@ class IRC
     def connect()
         # Connect to the IRC server
         @irc = TCPSocket.open(@server, @port)
-        @irc2 = TCPSocket.open("za.shadowfire.org", 6667)
+        #@irc2 = TCPSocket.open("za.shadowfire.org", 6667)
         @initialising = true
         send "USER blah blah blah :blah blah"
         send "PASS #{@pass}"        
@@ -2135,7 +2136,7 @@ class IRC
                 @starting = false                
               end
             end           
-            ready = select([@irc, @irc2, $stdin], nil, nil, 0.2)            
+            ready = select([@irc, $stdin], nil, nil, 0.2)            
             next if !ready   
             if (ready)
             for s in ready[0]
@@ -2148,11 +2149,11 @@ class IRC
                     s = @irc.gets
                     @source = "war3"
                     handle_server_input(s)  
-                elsif s == @irc2 then
-                    return if @irc2.eof
-                    s = @irc2.gets
-                    @source = "irc"
-                    handle_server_input(s)                 
+                # elsif s == @irc2 then
+                #                     return if @irc2.eof
+                #                     s = @irc2.gets
+                #                     @source = "irc"
+                #                     handle_server_input(s)                 
                 end
             end
             end
