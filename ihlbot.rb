@@ -166,7 +166,8 @@ class IRC
         @voted = {}                           #Hash to record who has VP'd who
         @suspended = []
         @source = "war3"      
-        @initialising = false       
+        @initialising = false
+        @notme = true
         @worst_player = "Nobody"
         @worst_message = "Nothing"
         @log = SortedSet.new                        #array to hold the last 10 commands run
@@ -185,7 +186,7 @@ class IRC
         if(s.split(" ")[0].downcase == "group")
          @irc.send "#{s}\n", 0
         else
-         if(s.split(" ")[1] == "#saihl" || @initialising || @source == "both")
+         if(s.split(" ")[1] == "#{@channel}" || @initialising || @source == "both")
            @irc.send "#{s}\n", 0
            @irc2.send "#{s}\n", 0
          else
@@ -216,7 +217,7 @@ class IRC
         send "NICK #{@nick}"        
         send "JOIN #{@channel}"
         send "MODE #{@nick} +B"
-	@initialising = false       
+        @initialising = false       
     end
     
     #* * * * * * * * * * * * * * * * * * * * * * *
@@ -1603,7 +1604,7 @@ class IRC
                                     @playerlist.delete(pl)
                                  end 
                                end
-                              Player.delete(p)                            
+                              Player.delete(p)
                               send "group ihl2 member -#{message[1]}"
                               send "PRIVMSG #{$1} :Player \"#{message[1]}\" removed from the IHL"                        
                             end    
@@ -1906,6 +1907,19 @@ class IRC
                                       
                     when "!worstplayer", "!worst"
                       send "PRIVMSG #{@channel} :#{@worst_player} is by far the #{@worst_message} in IHL."
+
+                    when "!notme"
+                       if(Nick.find_by_nick $1)
+                          if(Nick.find_by_nick($1).player.cg >= 10)
+                            if(@notme == false)
+                              send "PRIVMSG #{$1} :notme set to true"
+                              @notme = true;
+                            else
+                              send "PRIVMSG #{$1} :notme set to false"
+                              @notme = false;
+                            end
+                          end
+                        end
                       
                     when "!setworst"
                      if(Nick.find_by_nick $1)
@@ -1995,10 +2009,12 @@ class IRC
                       
                       else
                         send "PRIVMSG #{$1} :--HELP--"
+
                         send "PRIVMSG #{$1} :You are not registered as part of the South African In House 2nd League"
                         send "PRIVMSG #{$1} :To join the league, please goto forum.war3.co.za and read up about the league under the \"Dota Allstars\" - \"IHL\" Section."
                         send "PRIVMSG #{$1} :If you are supposed to be in the league, please msg Orange or another admin to get added to this bot."
                         send "PRIVMSG #{$1} :!admins - Shows a list of all the admins."
+
                       end
                       
                   else #end case                
