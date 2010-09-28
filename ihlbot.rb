@@ -13,6 +13,10 @@ require "active_record"
 require "active_support"
 require "yaml"
 
+# The main program
+# If we get an exception, then print it out and keep going (we do NOT want
+# to disconnect unexpectedly!)
+config = YAML::load(File.open("config.yml"))
 
 =begin
 * Establish connection to the MYSQL server
@@ -20,7 +24,9 @@ require "yaml"
 ActiveRecord::Base.establish_connection(
   :adapter => "mysql",
   :host => "localhost",
-  :database => "saihl"
+  :database => "saihl",
+  :username => config["database-user"]
+  :password => config["database-password"]
 )
 
 =begin
@@ -1912,6 +1918,7 @@ class IRC
                       if(Nick.find_by_nick $1)
                         send "PRIVMSG #{$1} :--HELP--"
                         send "PRIVMSG #{$1} :Welcome to the SAIHL please use the commands below ;)"
+                        send "PRIVMSG #{$1} :**This service is sponsored by egamer.co.za**"
                         send "PRIVMSG #{$1} :"
                         send "PRIVMSG #{$1} :--Commands--"
                         send "PRIVMSG #{$1} :!sg - Starts a game"
@@ -2123,10 +2130,6 @@ class IRC
     end
 end
 
-# The main program
-# If we get an exception, then print it out and keep going (we do NOT want
-# to disconnect unexpectedly!)
-config = YAML::load(File.open("config.yml"))
 irc = IRC.new(config["server"], config["port"] , config["username"], config["password"] , '#saihl')
 
 while(true)
