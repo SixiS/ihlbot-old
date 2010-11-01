@@ -169,7 +169,7 @@ class IRC
         # Send a message to the irc server and print it to the screen
         puts "--> #{s}"
         #puts s       
-        @irc.send "#{s}\n", 0
+        #@irc.send "#{s}\n", 0
         if(s.split(" ")[0].downcase == "group")
           @irc.send "#{s}\n", 0
         else
